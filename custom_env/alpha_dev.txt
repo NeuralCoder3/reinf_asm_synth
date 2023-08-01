@@ -1,0 +1,152 @@
+     "mov 0x4(%0), %%eax            \n"
+      "mov 0x8(%0), %%ecx            \n"
+      "cmp %%eax, %%ecx              \n"
+      "mov %%eax, %%edx              \n"
+      "cmovl %%ecx, %%edx            \n"
+      "mov (%0), %%r8d               \n"
+      "cmovg %%ecx, %%eax            \n"
+      "cmp %%r8d, %%eax              \n"
+      "mov %%r8d, %%ecx              \n"
+      "cmovl %%eax, %%ecx            \n"
+      "cmovle %%r8d, %%eax           \n"
+      "mov %%eax, 0x8(%0)            \n"
+      "cmp %%ecx, %%edx              \n"
+      "cmovle %%edx, %%r8d           \n"
+      "mov %%r8d, (%0)               \n"
+      "cmovg %%edx, %%ecx            \n"
+      "mov %%ecx, 0x4(%0)            \n"
+
+
+
+
+        mov 4 A
+        mov 8 C
+        cmp A C
+        mov A D
+        cmovl C D
+        mov 0 R
+        movg C A
+        cmp R A
+        mov R C
+        cmovl A C
+        cmovle R A
+        mov A 9
+        cmp C D
+        cmovle D R
+        mov R 0
+        cmovg D C
+        mov C 4
+
+
+
+
+        mov 0 R
+        mov 4 A
+        mov 8 C
+
+        cmp A C
+        mov A D
+        cmovl C D
+        movg C A
+        cmp R A
+        mov R C
+        cmovl A C
+        cmovle R A
+        cmp C D
+        cmovle D R
+        cmovg D C
+
+        mov R 0
+        mov C 4
+        mov A 8
+
+
+
+        # R = X
+        # A = Y
+        # C = Z
+        # D = SWAP
+
+        "cmp"  , A, C
+        "mov"  , A, D
+        "cmovl", C, D
+        "cmovg", C, A
+        "cmp"  , R, A
+        "mov"  , R, C
+        "cmovl", A, C
+        "cmovl", R, A
+        "cmp"  , C, D
+        "cmovl", D, R
+        "cmovg", D, C
+
+
+
+
+        # XYZ
+        # Swap
+
+
+        ("cmp"  , Y, Z),
+        ("mov"  , Y, S),
+        ("cmovl", Z, S),
+        ("cmovg", Z, Y),
+
+
+        ("cmp"  , X, Y),
+        ("mov"  , X, Z),
+        ("cmovl", Y, Z),
+        ("cmovl", X, Y),
+
+        ("cmp"  , Z, S),
+        ("cmovl", S, X),
+        ("cmovg", S, Z),
+
+
+
+
+
+
+
+        # XYZ = ABC
+        # Swap
+
+        ("mov"  , Y, S), # S = B
+
+        ("cmp"  , Y, Z),
+        ("cmovl", Z, S), # S = max(Y,Z) = max(B,C)
+        ("cmovg", Z, Y), # Y = min(Y,Z) = min(B,C)
+
+
+        ("cmp"  , X, Y),
+        ("mov"  , X, Z), # Z = A
+        ("cmovl", Y, Z), # Z = max(X,Y) = max(A,min(B,C))
+        ("cmovl", X, Y), # Y = min(X,Y) = min(A,min(B,C)) => global min
+
+        ("cmp"  , Z, S), # max(A,min(B,C)) ? max(B,C)
+        ("cmovl", S, X), #
+        ("cmovg", S, Z),
+        # Z = min
+        # X = middle
+        # Y = max
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
