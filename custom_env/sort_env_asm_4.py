@@ -28,6 +28,22 @@ def apply(instr, a, b, state, nums, swap_count):
     elif instr == "cmovl":
         if state[less_flag_idx] == 1:
             state[b] = state[a]
+    elif instr == "halt":
+        pass
+    elif instr == "nop":
+        pass
+    elif instr == "cswapg":
+        if flags[greater_flag_idx] == 1:
+            val_a = get_register(a)
+            val_b = get_register(b)
+            set_register(a, val_b)
+            set_register(b, val_a)
+    elif instr == "swap_gt":
+        val_a = get_register(a)
+        val_b = get_register(b)
+        if val_a > val_b:
+            set_register(a, val_b)
+            set_register(b, val_a)
     else:
         raise ValueError("Unknown instruction: " + instr)
 
@@ -43,16 +59,16 @@ def state_to_string(state, nums, swap_count):
                 
     return f"{numbers} | {swap_registers} | {flags}"
 
-class SortAsmEnv(gym.Env):
+class SortAsmEnv4(gym.Env):
     metadata = {"render_modes": ["human", "actions"]}
 
     def __init__(self, render_mode=None, 
-        nums = 3, extra_registers = -1,
+        nums = 3, swap_registers = -1,
         early_termination=True, informed_reward=False, 
         num_tests = -1, max_episode_steps = None):
 
-        if extra_registers == -1:
-            extra_registers = nums
+        if swap_registers == -1:
+            swap_registers = nums
 
         self.nums = nums
         self.max_episode_steps = nums * nums if max_episode_steps is None else max_episode_steps
@@ -76,8 +92,8 @@ class SortAsmEnv(gym.Env):
         ## State
 
         # state = sort registers, swap registers; each 0..n-1
-        self.swap_register_count = extra_registers
-        self.total_registers = nums + extra_registers
+        self.swap_register_count = swap_registers
+        self.total_registers = nums + swap_registers
         self.flags = 2
 
         # ~~current code~~, current test states, swap registers, flags
@@ -92,15 +108,34 @@ class SortAsmEnv(gym.Env):
         ## Actions
 
         # all moves => binary instructions between all registers
-        self.actions = (
+        # self.actions = (
+        #     list(
+        #         itertools.product(
+        #             ["mov", "cmp", "cmovg", "cmovl"],
+        #             list(range(self.total_registers)),
+        #             list(range(self.total_registers))
+        #         )
+        #     )
+        # ) + [("nop", 0, 0)] + [("halt", 0, 0)]
+        self.actions = \
             list(
+                [(i,ab[0], ab[1])  for i, ab in
+                # *mov* instructions not registered with themselves
                 itertools.product(
-                    ["mov", "cmp", "cmovg", "cmovl"],
-                    list(range(self.total_registers)),
-                    list(range(self.total_registers))
+                    ["mov", "cmovg", "cmovl"],
+                    [(a,b) for a,b in itertools.product(range(self.total_registers), repeat=2) if a != b]
                 )
-            )
-        )
+                ]
+            ) + \
+            list(
+                # cmp but only a<b
+                [("cmp", a,b) for a,b in itertools.combinations(range(self.total_registers), 2)]
+            ) + \
+            [("nop", 0, 0)] + [("halt", 0, 0)] # halt and nop
+
+        # print("Generated", len(self.actions), "actions", self.actions)
+        # exit()
+
 
         # which instruction to execute
         self.action_space = spaces.Discrete(len(self.actions))
@@ -166,7 +201,7 @@ class SortAsmEnv(gym.Env):
         instr,a,b = self.actions[action]
         # reversed for-loops would be faster
         for i in range(len(self.state)):
-            apply(instr, a, b, self.state[i])
+            apply(instr, a, b, self.state[i], self.nums, self.swap_register_count)
             # less_flag    = self.state[i,self.total_registers]
             # greater_flag = self.state[i,self.total_registers+1]
             # if instr == "mov":
@@ -193,6 +228,7 @@ class SortAsmEnv(gym.Env):
         return f"{instr} ${a} ${b}"
 
     def step(self, action):
+        instr,_,_ = self.actions[action]
         self._apply_action(action)
         self.steps += 1
         
@@ -205,43 +241,43 @@ class SortAsmEnv(gym.Env):
         if self.render_mode == "human":
             self._render_frame()
 
-        all_sorted = True
-        for i in range(len(self.state)):
-            if not np.all(self.state[i,:self.nums] == self.dest[i,:]):
-                all_sorted = False
-                break
 
-        # reward = 0
-        # reward = -0.1 # reward faster
-        reward = -1 # reward faster
+        give_reward = False
+        all_sorted = True
+
+        info_reward = 0
+        # subtract points for duplicate values
+        for i in range(len(self.state)):
+            for j in range(self.nums):
+                for k in range(j+1, self.nums):
+                    if self.state[i,j] == self.state[i,k]:
+                        info_reward -= 1
+                        all_sorted = False
+        # subtract points if place not the same across all tests
+        for i in range(self.nums):
+            unique_values = np.unique(self.state[:,i])
+            if len(unique_values) > 1:
+                info_reward -= 1*len(unique_values)
+                all_sorted = False
+
         terminated = False
         truncated = False
 
         if all_sorted:
-            # reward = 1
-            reward = 10
+            info_reward += 1000
+            give_reward = True
             terminated = True
-            # maybe use higher reward 
+            truncated = False
         elif self.early_termination and self.steps >= self.max_episode_steps:
             truncated = True
-            reward = -1
-            # reward to partial sorting
-            if self.informed_reward:
-                for i in range(len(self.state)):
-                    for j in range(self.nums-1):
-                        # use >= to avoid rewarding setting everything to a constant
-                        if self.state[i,j] >= self.state[i,j+1]:
-                            reward -= 1
-                # subtract points for duplicate values
-                for i in range(len(self.state)):
-                    for j in range(self.nums):
-                        for k in range(j+1, self.nums):
-                            if self.state[i,j] == self.state[i,k]:
-                                reward -= 1
-                # if self.render_mode:
-                #     print("informed truncate reward: ", reward)
-                #     self._render_frame(force=True)
+            give_reward = True
+            terminated = False
+        elif instr == "halt":
+            give_reward = True
+            terminated = True
+            truncated = False
 
+        reward = info_reward if give_reward else 0 # -1
 
         if render and (truncated or terminated):
             print("truncate" if truncated else "terminate")

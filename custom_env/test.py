@@ -13,6 +13,7 @@ from grid_env import GridWorldEnv
 from count_env import CountEnv
 from sort_env import SortEnv
 from sort_env_asm import SortAsmEnv
+from sort_env_asm_3 import SortAsmEnv3
 
 # model_name = "ppo-GridWorldEnv"
 # max_steps = 100
@@ -50,40 +51,58 @@ from sort_env_asm import SortAsmEnv
 # training_episodes = 1000000
 
 model_name = "ppo-SortAsmEnv3"
+# sortAsm2:
+# swapIfGt alone works
+# swapIfGt + other asm works
+# swap and cmp works
+# swap and cmp + other asm does not work (not found)
+
+# sortAsm3 (only 1 test => success on one has much higher weight)
+# swapIfGt + other asm works
+
+
 # envGenerator = lambda **args: SortAsmEnv(informed_reward=True, nums=3, max_episode_steps=3**3,**args)
-envGenerator = lambda **args: SortAsmEnv(informed_reward=True, nums=3, max_episode_steps=100,**args)
+# envGenerator = lambda **args: SortAsmEnv3(informed_reward=True, nums=3, max_episode_steps=100, swap_registers=1,**args)
+envGenerator = lambda **args: SortAsmEnv3(informed_reward=True, nums=3, max_episode_steps=100, swap_registers=1,**args)
 # envGenerator = lambda **args: SortAsmEnv(informed_reward=True, extra_registers=1, nums=3, max_episode_steps=50, num_tests=100,**args)
-training_episodes = 1000000
+# training_episodes = 1000000
+training_episodes = 200000
 
 train = True
 # train = False
 continueModel = False
 # continueModel = True
 
-# evalMode = "human"
+evalMode = "human"
 evalCount = 10
-evalMode = "actions"
+# evalMode = "actions"
 # evalCount = 1
-# deterministicEval = True
-deterministicEval = False
+deterministicEval = True
+# deterministicEval = False
 
 evalModel = lambda **args: Monitor(envGenerator(render_mode=evalMode, **args))
 env = envGenerator()
 observation, info = env.reset(seed=42)
 
 # https://spinningup.openai.com/en/latest/algorithms/ppo.html
-# model = PPO(
-#     policy="MlpPolicy",
-#     # policy="MultiInputPolicy",
-#     env=env,
-#     n_steps=1024,
-#     batch_size=64,
-#     n_epochs=4,
-#     gamma=0.999,
-#     gae_lambda=0.98,
-#     ent_coef=0.01,
-#     verbose=1,
-# )
+model = PPO(
+    # policy="MlpPolicy",
+    policy="MultiInputPolicy",
+    env=env,
+    n_steps=1024,
+    batch_size=64,
+    n_epochs=4,
+    gamma=0.999,
+    gae_lambda=0.98,
+    ent_coef=0.01,
+    # ent_coef=0.9,
+    # ent_coef=0.2,
+    verbose=1,
+)
+
+
+from sb3_contrib import RecurrentPPO
+# model = RecurrentPPO("MlpLstmPolicy", env, verbose=1)
 
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/custom_policy.html
@@ -95,16 +114,17 @@ observation, info = env.reset(seed=42)
 # vf = value function network
 # policy_kwargs = dict(activation_fn=torch.nn.ReLU,
 #                      net_arch=dict(pi=[128, 64], vf=[128, 64]))
-policy_kwargs = dict(activation_fn=torch.nn.ReLU,
-                     net_arch=[64, 64, 64])
 
-model = PPO(
-    # policy="CnnPolicy",
-    policy="MlpPolicy",
-    env=env,
-    verbose=1,
-    policy_kwargs=policy_kwargs,
-)
+# policy_kwargs = dict(activation_fn=torch.nn.ReLU,
+#                      net_arch=[64, 64, 64])
+
+# model = PPO(
+#     # policy="CnnPolicy",
+#     policy="MlpPolicy",
+#     env=env,
+#     verbose=1,
+#     policy_kwargs=policy_kwargs,
+# )
 print(model.policy)
 # exit(1)
 
