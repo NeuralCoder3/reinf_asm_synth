@@ -14,6 +14,9 @@ from count_env import CountEnv
 from sort_env import SortEnv
 from sort_env_asm import SortAsmEnv
 from sort_env_asm_3 import SortAsmEnv3
+from sort_env_asm_4 import SortAsmEnv4
+from sort_env_asm_5 import SortAsmEnv5
+
 
 # model_name = "ppo-GridWorldEnv"
 # max_steps = 100
@@ -50,7 +53,7 @@ from sort_env_asm_3 import SortAsmEnv3
 # envGenerator = lambda **args: SortEnv(informed_reward=True, nums=10, num_tests=100, max_episode_steps=10**3,**args)
 # training_episodes = 1000000
 
-model_name = "ppo-SortAsmEnv3"
+# model_name = "ppo-SortAsmEnv3"
 # sortAsm2:
 # swapIfGt alone works
 # swapIfGt + other asm works
@@ -61,12 +64,21 @@ model_name = "ppo-SortAsmEnv3"
 # swapIfGt + other asm works
 
 
+model_name = "ppo-SortAsmEnv5"
+
+
 # envGenerator = lambda **args: SortAsmEnv(informed_reward=True, nums=3, max_episode_steps=3**3,**args)
 # envGenerator = lambda **args: SortAsmEnv3(informed_reward=True, nums=3, max_episode_steps=100, swap_registers=1,**args)
-envGenerator = lambda **args: SortAsmEnv3(informed_reward=True, nums=3, max_episode_steps=100, swap_registers=1,**args)
+# envGenerator = lambda **args: SortAsmEnv3(informed_reward=True, nums=3, max_episode_steps=100, swap_registers=1,**args)
+# envGenerator = lambda **args: SortAsmEnv4(informed_reward=True, nums=3, max_episode_steps=100, swap_registers=1,**args)
 # envGenerator = lambda **args: SortAsmEnv(informed_reward=True, extra_registers=1, nums=3, max_episode_steps=50, num_tests=100,**args)
 # training_episodes = 1000000
+# training_episodes = 200000
+
+envGenerator = lambda **args: SortAsmEnv5(nums=3, max_episode_steps=50, swap_registers=1,**args)
 training_episodes = 200000
+# training_episodes = 50000
+# training_episodes = 10000
 
 train = True
 # train = False
@@ -77,8 +89,8 @@ evalMode = "human"
 evalCount = 10
 # evalMode = "actions"
 # evalCount = 1
-deterministicEval = True
-# deterministicEval = False
+# deterministicEval = True
+deterministicEval = False
 
 evalModel = lambda **args: Monitor(envGenerator(render_mode=evalMode, **args))
 env = envGenerator()
@@ -86,8 +98,8 @@ observation, info = env.reset(seed=42)
 
 # https://spinningup.openai.com/en/latest/algorithms/ppo.html
 model = PPO(
-    # policy="MlpPolicy",
-    policy="MultiInputPolicy",
+    policy="MlpPolicy",
+    # policy="MultiInputPolicy",
     env=env,
     n_steps=1024,
     batch_size=64,
