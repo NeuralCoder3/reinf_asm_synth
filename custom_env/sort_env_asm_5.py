@@ -17,6 +17,7 @@ import itertools
 def apply(instr, a, b, registers, swap_registers, flags):
     less_flag_idx = 0
     greater_flag_idx = 1
+    flag_register_idx = 2
 
     def set_register(i,v):
         if i >= len(registers):
@@ -36,6 +37,8 @@ def apply(instr, a, b, registers, swap_registers, flags):
     elif instr == "cmp":
         flags[less_flag_idx] = 1 if get_register(a) < get_register(b) else 0
         flags[greater_flag_idx] = 1 if get_register(a) > get_register(b) else 0
+        flags[flag_register_idx] = a
+        flags[flag_register_idx+1] = b
     elif instr == "cmovg":
         if flags[greater_flag_idx] == 1:
             set_register(b, get_register(a))
@@ -66,10 +69,13 @@ def state_to_string(state, nums, swap_count):
     numbers = ",".join(str(x) for x in state[:nums])
     swap_registers = ",".join(str(x) for x in state[nums:total_registers])
     flags = ""
+    flag_reg_1 = state[total_registers+2]
+    flag_reg_2 = state[total_registers+3]
     if state[total_registers]:
-        flags += "<"
+        flags += f"${flag_reg_1} < ${flag_reg_2}"
     if state[total_registers+1]:
-        flags += ">"
+        flags += f"${flag_reg_1} > ${flag_reg_2}"
+        # flags += ">"
                 
     return f"{numbers} | {swap_registers} | {flags}"
 
@@ -106,9 +112,10 @@ class SortAsmEnv5(gym.Env):
         # state = sort registers, swap registers; each 0..n-1
         self.swap_register_count = swap_registers
         self.total_registers = nums + swap_registers
-        self.flags = 2
+        self.flags = 2+2
 
         # ~~current code~~, current test states, swap registers, flags
+        # the current code (and flag registers) are the same for all tests
         self.observation_space = spaces.Box(0, nums, shape=(self.test_count, self.total_registers + self.flags), dtype=int)
 
         
@@ -123,9 +130,9 @@ class SortAsmEnv5(gym.Env):
         use_nop = False
         
         use_cmp = True
-        # use_cmov = True
+        use_cmov = True
         # use_mov = True
-        use_cswap = True
+        # use_cswap = True
         # use_swapgt = True
         # use_halt = True
         # use_nop = True
@@ -136,12 +143,21 @@ class SortAsmEnv5(gym.Env):
         if use_nop:
             self.actions += [("nop", 0, 0)]
         
-        # order independent
-        # self.actions += [("cmp", a,b) for a,b in itertools.combinations(range(self.total_registers), 2)]
+        # order independent between real registers
         self.actions += [
                 (i,ab[0], ab[1])  for i, ab in
                 itertools.product(
                     (["cmp"] if use_cmp else [])+
+                    []
+                    ,
+                    [(a,b) for a,b in itertools.combinations(range(self.nums), 2)]
+                )
+        ]*2
+        # order independent between all registers
+        # self.actions += [("cmp", a,b) for a,b in itertools.combinations(range(self.total_registers), 2)]
+        self.actions += [
+                (i,ab[0], ab[1])  for i, ab in
+                itertools.product(
                     (["cswapgt"] if use_cswap else []) +
                     (["swapgt"] if use_swapgt else []) +
                     []
