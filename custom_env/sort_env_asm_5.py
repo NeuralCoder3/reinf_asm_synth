@@ -4,6 +4,22 @@ import pygame
 import numpy as np
 import itertools
 
+A = 0
+B = 1
+C = 2
+S = 3
+
+swap = lambda X,Y: [
+    ("cmp", X,Y),
+    ("cmovg", S, X),
+    ("cmovg", X, Y),
+    ("cmovg", Y, S),
+]
+
+ref_actions = \
+    swap(A,B) + \
+    swap(B,C) + \
+    swap(A,B)
 
 # an environment to learn sorting algorithms using conditional moves
 # instructions:
@@ -176,7 +192,7 @@ class SortAsmEnv5(gym.Env):
         
         
         print("Generated", len(self.actions), "actions", self.actions)
-        exit()
+        # exit()
 
 
         # which instruction to execute
@@ -280,7 +296,7 @@ class SortAsmEnv5(gym.Env):
         self.early_termination = True
         self.informed_reward = False
         
-        instr,_,_ = self.actions[action]
+        instr,a,b = self.actions[action]
         self.code.append(action)
         self._apply_action(action)
         self.steps += 1
@@ -312,6 +328,15 @@ class SortAsmEnv5(gym.Env):
             if len(unique_values) > 1:
                 info_reward -= 5*len(unique_values)
                 all_sorted = False
+                
+        # for i in range(len(self.state)):
+        #     # +10 for all tests sorted
+        #     sorted = np.sort(self.state[i,:self.nums])
+        #     if np.array_equal(self.state[i,:self.nums], sorted):
+        #         # info_reward += 10
+        #         pass
+        #     else:
+        #         info_reward -= 1
 
         terminated = False
         truncated = False
@@ -329,9 +354,15 @@ class SortAsmEnv5(gym.Env):
             give_reward = True
             terminated = True
             truncated = False
+            
 
         # reward = info_reward if give_reward else 0 # -1
         reward = info_reward if give_reward else -1
+        # if self.steps<=len(ref_actions):
+        #     ref_instr, ref_a, ref_b = ref_actions[self.steps-1]
+        #     reward = 10 if instr == ref_instr and a == ref_a and b == ref_b else -10
+        # else:
+        #     reward = -10
 
         if render and (truncated or terminated):
             print("truncate" if truncated else "terminate")
@@ -375,12 +406,6 @@ if __name__ == "__main__":
     C = 2
     S = 3
     
-    nums = 3
-    swap_registers = 1
-    swap_register_count = swap_registers
-    total_registers = nums + swap_registers
-    flags = 2
-    
     swap = lambda X,Y: [
         ("cmp", X,Y),
         ("cmovg", S, X),
@@ -392,6 +417,12 @@ if __name__ == "__main__":
         swap(A,B) + \
         swap(B,C) + \
         swap(A,B)
+    
+    nums = 3
+    swap_registers = 1
+    swap_register_count = swap_registers
+    total_registers = nums + swap_registers
+    flags = 2
         
     tests = np.array(list(itertools.permutations(range(nums))))
     test_count = len(tests)

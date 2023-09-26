@@ -65,7 +65,7 @@ from sort_env_asm_5 import SortAsmEnv5
 # swapIfGt + other asm works
 
 
-model_name = "ppo-SortAsmEnv5_cmp_cmov"
+model_name = "ppo-SortAsmEnv5_cmp_cmov_overfit2"
 
 
 # envGenerator = lambda **args: SortAsmEnv(informed_reward=True, nums=3, max_episode_steps=3**3,**args)
@@ -80,13 +80,14 @@ model_name = "ppo-SortAsmEnv5_cmp_cmov"
 envGenerator = lambda **args: SortAsmEnv5(nums=3, max_episode_steps=20, swap_registers=1,**args)
 # training_episodes = 10000000
 # training_episodes = 1000000
-training_episodes = 200000
-# training_episodes = 50000
+# training_episodes = 200000
+# training_episodes = 100000
+training_episodes = 50000
 # training_episodes = 10000
 
 train = True
 # train = False
-continueModel = False
+# continueModel = False
 continueModel = True
 
 evalModel = lambda **args: Monitor(envGenerator(render_mode=evalMode, **args))
