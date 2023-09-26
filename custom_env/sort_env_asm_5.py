@@ -14,10 +14,9 @@ import itertools
 
 # we have n registers with values to be sorted and n additional swap registers
 
-def apply(instr, a, b, registers, swap_registers, flags):
+def apply(instr, a, b, registers, swap_registers, flags, info):
     less_flag_idx = 0
     greater_flag_idx = 1
-    flag_register_idx = 2
 
     def set_register(i,v):
         if i >= len(registers):
@@ -37,14 +36,14 @@ def apply(instr, a, b, registers, swap_registers, flags):
     elif instr == "cmp":
         flags[less_flag_idx] = 1 if get_register(a) < get_register(b) else 0
         flags[greater_flag_idx] = 1 if get_register(a) > get_register(b) else 0
-        flags[flag_register_idx] = a
-        flags[flag_register_idx+1] = b
+        info[0] = a
+        info[1] = b
     elif instr == "cmovg":
         if flags[greater_flag_idx] == 1:
-            set_register(b, get_register(a))
+            set_register(a, get_register(b))
     elif instr == "cmovl":
         if flags[less_flag_idx] == 1:
-            set_register(b, get_register(a))
+            set_register(a, get_register(b))
     elif instr == "halt":
         pass
     elif instr == "nop":
@@ -64,13 +63,13 @@ def apply(instr, a, b, registers, swap_registers, flags):
     else:
         raise ValueError("Unknown instruction: " + instr)
 
-def state_to_string(state, nums, swap_count):
+def state_to_string(state, nums, swap_count, info):
     total_registers = nums + swap_count
     numbers = ",".join(str(x) for x in state[:nums])
     swap_registers = ",".join(str(x) for x in state[nums:total_registers])
     flags = ""
-    flag_reg_1 = state[total_registers+2]
-    flag_reg_2 = state[total_registers+3]
+    flag_reg_1 = info[0]
+    flag_reg_2 = info[1]
     if state[total_registers]:
         flags += f"${flag_reg_1} < ${flag_reg_2}"
     if state[total_registers+1]:
@@ -112,11 +111,7 @@ class SortAsmEnv5(gym.Env):
         # state = sort registers, swap registers; each 0..n-1
         self.swap_register_count = swap_registers
         self.total_registers = nums + swap_registers
-        self.flags = 2+2
-
-        # ~~current code~~, current test states, swap registers, flags
-        # the current code (and flag registers) are the same for all tests
-        self.observation_space = spaces.Box(0, nums, shape=(self.test_count, self.total_registers + self.flags), dtype=int)
+        self.flags = 2
 
         
         ## Actions
@@ -152,7 +147,7 @@ class SortAsmEnv5(gym.Env):
                     ,
                     [(a,b) for a,b in itertools.combinations(range(self.nums), 2)]
                 )
-        ]*2
+        ]
         # order independent between all registers
         # self.actions += [("cmp", a,b) for a,b in itertools.combinations(range(self.total_registers), 2)]
         self.actions += [
@@ -181,25 +176,47 @@ class SortAsmEnv5(gym.Env):
         
         
         print("Generated", len(self.actions), "actions", self.actions)
-        # exit()
+        exit()
 
 
         # which instruction to execute
         self.action_space = spaces.Discrete(len(self.actions))
 
 
+        # ~~current code~~, current test states, swap registers, flags
+        # the current code (and flag registers) are the same for all tests
+        # self.observation_space = spaces.Box(0, nums, shape=(self.test_count, self.total_registers + self.flags), dtype=int)
+        self.observation_space = spaces.Dict({
+            "state": spaces.Box(0, nums, shape=(self.test_count, self.total_registers + self.flags), dtype=int),
+            "code": spaces.Box(0, len(self.actions), shape=(5,), dtype=int),
+            "info": spaces.Box(0, nums, shape=(2,), dtype=int),
+            # "code": spaces.Box(0, len(self.actions), shape=(self.max_episode_steps,), dtype=int),
+        })
+        
+
         ## Prepare Variables
 
         # keep state bundled together for more efficient algorithms, and test bundling
         self.state = None
+        self.info = None
         # self.registers = None
         # self.swap = None
         # self.flags = None
         self.steps = None
+        self.code = None
 
 
     def _get_obs(self):
-        return self.state
+        # return self.state
+        # code_embedding = np.zeros((self.max_episode_steps), dtype=int)
+        code_embedding = np.zeros((5), dtype=int)
+        self.code = self.code[:5]
+        code_embedding[:len(self.code)] = [i+1 for i in reversed(self.code)]
+        return {
+            "state": self.state,
+            "info": self.info,
+            "code": code_embedding,
+        }
         # return {
         #     "registers": self.registers,
         #     "swap": self.swap,
@@ -227,6 +244,8 @@ class SortAsmEnv5(gym.Env):
         # all tests + swap registers at 0 + flags at 0
         self.state = np.zeros((self.test_count, self.total_registers + self.flags), dtype=int)
         self.state[:,:self.nums] = np.copy(self.tests)
+        self.info = np.zeros((2), dtype=int)
+        self.code = []
         # self.registers = np.copy(self.tests)
         # self.swap = np.zeros((self.swap_register_count,), dtype=int)
         # self.flags = np.zeros((self.flags,), dtype=int)
@@ -251,7 +270,7 @@ class SortAsmEnv5(gym.Env):
         for i in range(len(self.state)):
             # apply(instr, a, b, self.state[i], self.nums, self.swap_register_count)
             state = self.state[i]
-            apply(instr, a, b, state[:self.nums], state[self.nums:self.total_registers], state[self.total_registers:])
+            apply(instr, a, b, state[:self.nums], state[self.nums:self.total_registers], state[self.total_registers:], self.info)
         
     def _action_to_string(self, action):
         instr,a,b = self.actions[action]
@@ -262,6 +281,7 @@ class SortAsmEnv5(gym.Env):
         self.informed_reward = False
         
         instr,_,_ = self.actions[action]
+        self.code.append(action)
         self._apply_action(action)
         self.steps += 1
         
@@ -290,7 +310,7 @@ class SortAsmEnv5(gym.Env):
         for i in range(self.nums):
             unique_values = np.unique(self.state[:,i])
             if len(unique_values) > 1:
-                info_reward -= 1*len(unique_values)
+                info_reward -= 5*len(unique_values)
                 all_sorted = False
 
         terminated = False
@@ -329,7 +349,7 @@ class SortAsmEnv5(gym.Env):
             # print the current state
             states = []
             for i in range(len(self.state)):
-                states.append(state_to_string(self.state[i], self.nums, self.swap_register_count))
+                states.append(state_to_string(self.state[i], self.nums, self.swap_register_count, self.info))
                 # numbers = ",".join(str(x) for x in self.state[i,:self.nums])
                 # swap_registers = ",".join(str(x) for x in self.state[i,self.nums:self.total_registers])
                 # flags = ""
@@ -350,5 +370,45 @@ if __name__ == "__main__":
     # if not res:
     #     output = simulate_actions(sorter, example)
     #     print("Output:", output)
+    A = 0
+    B = 1
+    C = 2
+    S = 3
+    
+    nums = 3
+    swap_registers = 1
+    swap_register_count = swap_registers
+    total_registers = nums + swap_registers
+    flags = 2
+    
+    swap = lambda X,Y: [
+        ("cmp", X,Y),
+        ("cmovg", S, X),
+        ("cmovg", X, Y),
+        ("cmovg", Y, S),
+    ]
+    
+    actions = \
+        swap(A,B) + \
+        swap(B,C) + \
+        swap(A,B)
+        
+    tests = np.array(list(itertools.permutations(range(nums))))
+    test_count = len(tests)
+    states = np.zeros((test_count, total_registers + flags), dtype=int)
+    states[:,:nums] = np.copy(tests)
+    info = np.zeros((2), dtype=int)
+    
+    for instr, a, b in actions:
+        print(instr, a, b)
+        for i in range(len(states)):
+            state = states[i]
+            apply(instr, a, b, state[:nums], state[nums:total_registers], state[total_registers:], info)
+            
+        str_states = []
+        for i in range(len(states)):
+            str_states.append(state_to_string(states[i], nums, swap_register_count, info))
+        print("\n".join("  " + x for x in str_states))
+        
 
-    raise NotImplementedError("The verification code is not implemented yet")
+    # raise NotImplementedError("The verification code is not implemented yet")

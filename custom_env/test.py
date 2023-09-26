@@ -1,6 +1,6 @@
 import gymnasium as gym
 
-from stable_baselines3 import PPO, A2C
+from stable_baselines3 import DQN, PPO, A2C
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
@@ -11,6 +11,7 @@ from gymnasium.wrappers import TimeLimit
 
 from grid_env import GridWorldEnv
 from count_env import CountEnv
+from optuna_utils.sample_params.ppo import linear_schedule
 from sort_env import SortEnv
 from sort_env_asm import SortAsmEnv
 from sort_env_asm_3 import SortAsmEnv3
@@ -64,7 +65,7 @@ from sort_env_asm_5 import SortAsmEnv5
 # swapIfGt + other asm works
 
 
-model_name = "ppo-SortAsmEnv5"
+model_name = "ppo-SortAsmEnv5_cmp_cmov"
 
 
 # envGenerator = lambda **args: SortAsmEnv(informed_reward=True, nums=3, max_episode_steps=3**3,**args)
@@ -75,7 +76,10 @@ model_name = "ppo-SortAsmEnv5"
 # training_episodes = 1000000
 # training_episodes = 200000
 
-envGenerator = lambda **args: SortAsmEnv5(nums=3, max_episode_steps=50, swap_registers=1,**args)
+# envGenerator = lambda **args: SortAsmEnv5(nums=3, max_episode_steps=50, swap_registers=1,**args)
+envGenerator = lambda **args: SortAsmEnv5(nums=3, max_episode_steps=20, swap_registers=1,**args)
+# training_episodes = 10000000
+# training_episodes = 1000000
 training_episodes = 200000
 # training_episodes = 50000
 # training_episodes = 10000
@@ -83,34 +87,47 @@ training_episodes = 200000
 train = True
 # train = False
 continueModel = False
-# continueModel = True
-
-evalMode = "human"
-evalCount = 10
-# evalMode = "actions"
-# evalCount = 1
-# deterministicEval = True
-deterministicEval = False
+continueModel = True
 
 evalModel = lambda **args: Monitor(envGenerator(render_mode=evalMode, **args))
 env = envGenerator()
 observation, info = env.reset(seed=42)
 
+evalMode = "human"
+evalCount = 10
+# evalMode = "actions"
+# evalCount = 1
+deterministicEval = False
+
+policy_kwargs = None
+# policy_kwargs = dict(activation_fn=torch.nn.ReLU,
+#                      net_arch=[64, 64, 64])
+policy_kwargs = dict(activation_fn=torch.nn.Tanh,
+                     net_arch=[64, 64, 64])
+
 # https://spinningup.openai.com/en/latest/algorithms/ppo.html
 model = PPO(
-    policy="MlpPolicy",
-    # policy="MultiInputPolicy",
+#     # policy="MlpPolicy",
+    policy="MultiInputPolicy",
     env=env,
-    n_steps=1024,
-    batch_size=64,
-    n_epochs=4,
-    gamma=0.999,
-    gae_lambda=0.98,
-    ent_coef=0.01,
-    # ent_coef=0.9,
-    # ent_coef=0.2,
+#     n_steps=1024,
+#     batch_size=64,
+#     n_epochs=4,
+#     gamma=0.999,
+#     gae_lambda=0.98,
+#     ent_coef=0.01,
+#     # ent_coef=0.9,
+#     # ent_coef=0.2,
     verbose=1,
+#     policy_kwargs=policy_kwargs,
 )
+
+# model = DQN(
+#     policy="MultiInputPolicy",
+#     env=env,
+#     verbose=1,
+#     learning_rate=linear_schedule(1e-3),
+# )
 
 
 from sb3_contrib import RecurrentPPO
